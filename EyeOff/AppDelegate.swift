@@ -1,5 +1,7 @@
 import Cocoa
 import UserNotifications
+import ServiceManagement
+
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -35,17 +37,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
 
-
+        //? Sound customize
         let soundMenuItem = NSMenuItem(title: "Select Sound", action: nil, keyEquivalent: "")
         menu.setSubmenu(soundMenu, for: soundMenuItem)
         menu.addItem(soundMenuItem)
+        
+        //? Run on login
+        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(loginItem)
+
+        //? Noti setting
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Notification Settings", action: #selector(openNotificationSettings), keyEquivalent: ""))
+        
+        //? App info
         menu.addItem(NSMenuItem(title: "About EyesOff", action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
         statusItem.menu = menu
     }
+    
+    func toggleLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+                print("✅ App registered for launch at login")
+            } else {
+                try SMAppService.mainApp.unregister()
+                print("❌ App unregistered from launch at login")
+            }
+        } catch {
+            print("⚠️ Failed to toggle launch at login: \(error)")
+        }
+    }
+
 
     func startWorkTimer() {
         workTimer?.invalidate()
@@ -133,9 +159,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func sendNotification() {
         let content = UNMutableNotificationContent()
+        
         content.title = "EyesOff Reminder"
         content.body = "Take a 20-second eye break! Look 20 feet away."
-        content.sound = .default
+        content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: "\(getSelectedSound()).aiff"))
+
 
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
@@ -172,6 +200,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSSound(named: NSSound.Name(soundName))?.play()
     }
     
+    @objc func toggleLoginItem(_ sender: NSMenuItem) {
+        let enable = sender.state == .off
+        toggleLaunchAtLogin(enable)
+        sender.state = enable ? .on : .off
+    }
+    
     @objc func selectSoundRadio(_ sender: NSButton) {
         guard let sound = sender.identifier?.rawValue else { return }
         saveSelectedSound(sound)
@@ -193,7 +227,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sender.state = .on
 
     }
-
     
     @objc func openNotificationSettings() {
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
