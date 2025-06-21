@@ -10,6 +10,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var remainingSeconds = 20
     var currentInterval: TimeInterval = 20 // 20 minutes
     
+    var isBreakAlertRunning = false
+    
     var soundMenu: NSMenu!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -97,76 +99,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.remainingSeconds -= 1
             if self.remainingSeconds <= 0 {
                 timer.invalidate()
-                self.dismissActiveAlert()
                 self.startWorkTimer() // Restart 20 minutes
             }
         }
     }
 
-    var activePanel: NSPanel?
+    func sendNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "EyesOff Reminder"
+        content.body = "Take a 20-second eye break! Look 20 feet away."
 
-    func showBreakAlert() {
-        let screenFrame = NSScreen.main?.frame ?? .zero
-        let panel = NSPanel(
-            contentRect: CGRect(x: screenFrame.midX - 200, y: screenFrame.midY - 150, width: 400, height: 300),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
         )
-        panel.title = "\u{1F441}\u{FE0F} EyesOff Break Time"
-        panel.isFloatingPanel = true
-        panel.level = .statusBar
-        panel.center()
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+    
+    func showBreakAlert() {
+        if isBreakAlertRunning {
+            return
+        }
+        
+        isBreakAlertRunning = true
+        
+        let alert = NSAlert()
+        alert.messageText = "👁️ EyesOff Break Time!"
+        alert.informativeText = """
+        🧘 Time to rest your eyes!
 
-        let contentView = NSView(frame: panel.contentRect(forFrameRect: panel.frame))
-        contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        ⏳ Look 20 feet away for 20 seconds.
+        💡 Blink slowly. Breathe deeply.
+        """
+        alert.alertStyle = .informational
+        
 
-        let label = NSTextField(labelWithString: "\u{1F9D8} Time to rest your eyes!\n\n\u{23F3} Please look 20 feet away and relax for 20 seconds.\n\n\u{1F4A1} Blink slowly. Breathe deeply.")
-        label.font = .systemFont(ofSize: 18, weight: .medium)
-        label.textColor = .labelColor
-        label.alignment = .center
-        label.backgroundColor = .clear
-        label.isBordered = false
-        label.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(label)
+        alert.addButton(withTitle: "Got it!")
+        
+        //? Cancel any previous scheduled alerts
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(showAlertModal(_:)), object: nil)
+        
+        self.perform(#selector(showAlertModal(_:)), with: alert, afterDelay: 0.1)
+    }
 
-        let okButton = NSButton(title: "Got it!", target: self, action: #selector(dismissAlertManually))
-        okButton.bezelStyle = .rounded
-        okButton.font = .systemFont(ofSize: 16)
-        okButton.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(okButton)
 
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: contentView.centerYAnchor, constant: -20),
-            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            okButton.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 20),
-            okButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor)
-        ])
-
-        panel.contentView = contentView
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        activePanel = panel
+    @objc func showAlertModal(_ alert: NSAlert) {
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            isBreakAlertRunning = false
+        }
     }
 
     func playAlertSound() {
         let currentSound = getSelectedSound()
         NSSound(named: NSSound.Name(currentSound))?.play()
-    }
-
-    func sendNotification() {
-        let content = UNMutableNotificationContent()
-        
-        content.title = "EyesOff Reminder"
-        content.body = "Take a 20-second eye break! Look 20 feet away."
-        content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: "\(getSelectedSound()).aiff"))
-
-
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
     }
 
     func requestNotificationPermission() {
@@ -236,14 +223,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func dismissAlertManually() {
         countdownTimer?.invalidate()
-        dismissActiveAlert()
         startWorkTimer()
-    }
-
-    func dismissActiveAlert() {
-        activePanel?.orderOut(nil)
-        activePanel?.close()
-        activePanel = nil
     }
 
     @objc func showAbout() {
@@ -255,8 +235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         \u{1F441} EyesOff reminds you to follow the 20-20-20 rule:
         Every 20 minutes, look at something 20 feet away for 20 seconds.
 
-        \u{1F4CC} Customizable interval. Blurs screen gently.
-        \u{1F517} GitHub: github.com/lavisar
+        \u{1F517} GitHub: github.com/lavisar/eyeoff
         \u{1F9D1}\u{200D}\u{1F4BB} Developed by Lavisar
         """
         alert.alertStyle = .informational
