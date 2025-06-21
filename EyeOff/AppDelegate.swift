@@ -121,10 +121,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.remainingSeconds -= 1
             if self.remainingSeconds <= 0 {
                 timer.invalidate()
+                self.sendBackToWorkNotification()
                 self.startWorkTimer() // Restart 20 minutes
             }
         }
     }
+    
+    func sendBackToWorkNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = lang.backToWorkTitle
+        content.body = lang.backToWorkBody
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil // Gửi ngay
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send notification: \(error)")
+            }
+        }
+    }
+
     
     func showBreakAlert() {
         if isBreakAlertRunning {
