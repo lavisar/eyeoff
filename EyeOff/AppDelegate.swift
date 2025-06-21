@@ -1,6 +1,7 @@
 import Cocoa
 import UserNotifications
 import ServiceManagement
+import Foundation
 
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,11 +9,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var workTimer: Timer?
     var countdownTimer: Timer?
     var remainingSeconds = 20
-    var currentInterval: TimeInterval = 20 // 20 minutes
-    
+    var currentInterval: TimeInterval = 20 * 60 // 20 minutes
     var isBreakAlertRunning = false
-    
     var soundMenu: NSMenu!
+    
+    var lang: LocalizedStrings {
+        AppLanguage.current.localizedStrings
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
@@ -40,24 +43,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
         //? Sound customize
-        let soundMenuItem = NSMenuItem(title: "Select Sound", action: nil, keyEquivalent: "")
+        let soundMenuItem = NSMenuItem(title: lang.selectSound, action: nil, keyEquivalent: "")
         menu.setSubmenu(soundMenu, for: soundMenuItem)
         menu.addItem(soundMenuItem)
         
+        //? Language settings
+        menu.addItem(setupLanguageMenu())
+        
         //? Run on login
-        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
+        let loginItem = NSMenuItem(title: lang.launchAtLogin, action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(loginItem)
 
         //? Noti setting
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Notification Settings", action: #selector(openNotificationSettings), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: lang.notificationSettings, action: #selector(openNotificationSettings), keyEquivalent: ""))
         
         //? App info
-        menu.addItem(NSMenuItem(title: "About EyesOff", action: #selector(showAbout), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: lang.aboutMenu, action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: lang.quit, action: #selector(quitApp), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
+    
+    func setupLanguageMenu() -> NSMenuItem {
+        let langMenu = NSMenu()
+        for lang in AppLanguage.allCases {
+            let item = NSMenuItem(title: lang.rawValue, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            item.state = (lang == AppLanguage.current) ? .on : .off
+            langMenu.addItem(item)
+        }
+        let parentItem = NSMenuItem(title: AppLanguage.current.localizedStrings.language, action: nil, keyEquivalent: "")
+        parentItem.submenu = langMenu
+        return parentItem
+    }
+
+    @objc func selectLanguage(_ sender: NSMenuItem) {
+        UserDefaults.standard.set(sender.title, forKey: "AppLanguage")
+        setupMenuBar()
     }
     
     func toggleLaunchAtLogin(_ enabled: Bool) {
@@ -87,7 +110,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.remainingSeconds = 20
             self.showBreakAlert()
             self.playAlertSound()
-            self.sendNotification()
             self.startCountdownToDismissAlert()
         }
     }
@@ -103,19 +125,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
-
-    func sendNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "EyesOff Reminder"
-        content.body = "Take a 20-second eye break! Look 20 feet away."
-
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
-    }
     
     func showBreakAlert() {
         if isBreakAlertRunning {
@@ -125,17 +134,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         isBreakAlertRunning = true
         
         let alert = NSAlert()
-        alert.messageText = "👁️ EyesOff Break Time!"
-        alert.informativeText = """
-        🧘 Time to rest your eyes!
-
-        ⏳ Look 20 feet away for 20 seconds.
-        💡 Blink slowly. Breathe deeply.
-        """
+        alert.messageText = lang.breakTitle
+        alert.informativeText = lang.breakBody
         alert.alertStyle = .informational
-        
-
-        alert.addButton(withTitle: "Got it!")
+        alert.addButton(withTitle: lang.breakButton)
         
         //? Cancel any previous scheduled alerts
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(showAlertModal(_:)), object: nil)
@@ -164,7 +166,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
         
-    // Custom sound
+    //? Custom sound
     func getSystemSoundNames() -> [String] {
         let soundFolder = "/System/Library/Sounds"
         let fileManager = FileManager.default
@@ -228,16 +230,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func showAbout() {
         let alert = NSAlert()
-        alert.messageText = "EyesOff (20-20-20)"
-        alert.informativeText = """
-        Version 1.0.0
-
-        \u{1F441} EyesOff reminds you to follow the 20-20-20 rule:
-        Every 20 minutes, look at something 20 feet away for 20 seconds.
-
-        \u{1F517} GitHub: github.com/lavisar/eyeoff
-        \u{1F9D1}\u{200D}\u{1F4BB} Developed by Lavisar
-        """
+        alert.messageText = lang.aboutTitle
+        alert.informativeText = lang.aboutBody
         alert.alertStyle = .informational
         alert.runModal()
     }
